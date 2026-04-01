@@ -70,6 +70,43 @@ export const createTokenPair = (user: {
     refreshTokenHash,
   };
 };
+
+// Token verification
+
+export const verifyAccessToken = (token: string): AccessTokenPayload => {
+  try {
+    const payload = jwt.verify(token, ACCESS_TOKEN_SECRET!, {
+      algorithms: ["HS256"],
+    }) as AccessTokenPayload;
+    return payload;
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new Error("ACCESS_TOKEN_EXPIRED");
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new Error("ACCESS_TOKEN_INVALID");
+    }
+    throw error;
+  }
+};
+
+export const verifyRefreshToken = (token: string): RefreshTokenPayload => {
+  try {
+    const payload = jwt.verify(token, REFRESH_TOKEN_SECRET!, {
+      algorithms: ["HS256"],
+    }) as RefreshTokenPayload;
+    return payload;
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new Error("REFRESH_TOKEN_EXPIRED");
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new Error("REFRESH_TOKEN_INVALID");
+    }
+    throw error;
+  }
+};
+
 export const hashToken = (token: string): string => {
   return crypto.createHash("sha256").update(token).digest("hex");
 };
