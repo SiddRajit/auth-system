@@ -38,6 +38,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  // Pull user data from validated request
+
   const { email, password, name } = data;
 
   try {
@@ -58,5 +60,139 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Hash Password
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    // Create User
+
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        email,
+        passwordHash,
+        name: name || null,
+      })
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+      });
+
+    // Create tokens and store refresh token in db
+
+    const tokenPair = createTokenPair(newUser);
+
+    await db.insert(refreshTokens).values({
+      userId: newUser.id,
+      tokenHash: tokenPair.refreshTokenHash,
+      expiresAt: tokenPair.refreshTokenExpiresAt,
+      userAgent: req.headers["user-agent"] || null,
+      ipAddress: req.ip || null,
+    });
+
+    // Set HTTP-only cookie and send to frontend
+
+    res.cookie("refreshToken", tokenPair.refreshToken, COOKIE_OPTIONS);
+
+    // Return response
+
+    res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      data: {
+        accessToken: tokenPair.accessToken,
+        user: newUser,
+      },
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred during registration",
+    });
+  }
+};
+
+export const login = async (req: Request, res: Response): Promise<void> => {
+  // Validate input
+
+  const { data, errors } = validate(loginSchema, req.body);
+  if (errors) {
+    res.status(400).json({
+      success: false,
+      message: "Validation failed",
+      errors,
+    });
+    return;
+  }
+
+  // Pull user data from validated request
+
+  const { email, password } = data;
+
+  try {
+    // Find user
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        passwordHash: users.passwordHash,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    // Verify password
+
+    const FAKE_HASH = "fakehashtopreventtimingattacks$32%31XX";
+    const hashPassword = user?.passwordHash || FAKE_HASH;
+    const isPasswordValid = await bcrypt.compare(password, hashPassword);
+
+    if (!user || !isPasswordValid) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+      return;
+    }
+
+    // Create and store tokens
+
+    const tokenPair = createTokenPair({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    });
+
+    await db.insert(refreshTokens).values({
+      userId: user.id,
+      tokenHash: tokenPair.refreshTokenHash,
+      expiresAt: tokenPair.refreshTokenExpiresAt,
+      userAgent: req.headers["user-agent"] || null,
+      ipAddress: req.ip || null,
+    });
+
+    // Set HTTP-only cookie and send to frontend
+
+    res.cookie("refreshToken", tokenPair.refreshToken, COOKIE_OPTIONS);
+
+    // Return user data without passwordHash
+
+    const { passwordHash: _, ...userWithoutPassword } = user;
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: {
+        accessToken: tokenPair.accessToken,
+        user: userWithoutPassword,
+      },
+    });
   } catch (error) {}
 };
