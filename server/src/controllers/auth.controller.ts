@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { eq, and } from "drizzle-orm";
-import { db } from "../db/index";
+import { db } from "../db";
 import { users, refreshTokens } from "../db/schema";
 import {
   createTokenPair,
@@ -13,6 +13,7 @@ import {
   loginSchema,
   validate,
 } from "../validators/auth.validators";
+import jwt from "jsonwebtoken";
 
 const BCRYPT_ROUNDS = 12;
 const COOKIE_OPTIONS = {
@@ -195,4 +196,100 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {}
+};
+
+export const refreshToken = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  // Pull out refresh token from cookies
+
+  const token = req.cookies["refreshToken"];
+
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "No refresh token provided",
+    });
+    return;
+  }
+
+  try {
+    // Verify JWT
+
+    let payload;
+    try {
+      payload = verifyRefreshToken(token);
+    } catch (error) {
+      res.clearCookie("refreshToken", COOKIE_OPTIONS);
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired refresh token provided",
+      });
+      return;
+    }
+
+    // Verify token in db
+
+    const tokenHash = hashToken(token);
+
+    const [storedToken] = await db
+      .select()
+      .from(refreshTokens)
+      .where(
+        and(
+          eq(refreshTokens.tokenHash, tokenHash),
+          eq(refreshTokens.userId, payload.sub),
+        ),
+      )
+      .limit(1);
+
+    if (
+      !storedToken ||
+      storedToken.revoked ||
+      storedToken.expiresAt < new Date()
+    ) {
+      res.clearCookie("refreshToken", COOKIE_OPTIONS);
+      res.status(401).json({
+        success: false,
+        message: "Refresh token has been revoked or expired",
+      });
+    }
+
+    // Get user and issue new access token
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+      })
+      .from(users)
+      .where(eq(users.id, payload.sub))
+      .limit(1);
+
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    const tokenPair = createTokenPair(user);
+
+    // Return new access token
+    res.status(200).json({
+      success: true,
+      data: {
+        accessToken: tokenPair.accessToken,
+      },
+    });
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred during token refresh",
+    });
+  }
 };
