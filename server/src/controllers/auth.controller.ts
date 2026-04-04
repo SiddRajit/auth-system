@@ -293,3 +293,34 @@ export const refreshToken = async (
     });
   }
 };
+
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  // Get token from cookies
+
+  const token = req.cookies["refreshToken"];
+
+  if (token) {
+    try {
+      const tokenHash = hashToken(token);
+
+      await db
+        .update(refreshTokens)
+        .set({ revoked: true })
+        .where(eq(refreshTokens.tokenHash, tokenHash));
+    } catch (error) {
+      console.error("Error revoking refresh token during logout:", error);
+    }
+  }
+
+  // Clear cookie
+
+  res.clearCookie("refreshToken", {
+    ...COOKIE_OPTIONS,
+    maxAge: 0,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Logged out successfully",
+  });
+};
