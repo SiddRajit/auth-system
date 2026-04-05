@@ -116,6 +116,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Login
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   // Validate input
 
@@ -197,6 +199,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {}
 };
+
+// Refresh Token
 
 export const refreshToken = async (
   req: Request,
@@ -294,6 +298,8 @@ export const refreshToken = async (
   }
 };
 
+// Logout
+
 export const logout = async (req: Request, res: Response): Promise<void> => {
   // Get token from cookies
 
@@ -323,4 +329,46 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     success: true,
     message: "Logged out successfully",
   });
+};
+
+// Get me
+
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Get userId from request and find user in db
+
+    const userId = req.user!.sub;
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    // Handle if no user is found
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Return user back
+
+    res.status(200).json({
+      success: true,
+      data: { user },
+    });
+  } catch (error) {
+    console.error("Get me error:", error);
+    res.status(500).json({ success: false, message: "An error occurred" });
+  }
 };
