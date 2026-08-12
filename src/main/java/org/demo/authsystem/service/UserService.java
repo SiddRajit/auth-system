@@ -1,6 +1,8 @@
 package org.demo.authsystem.service;
 
 import lombok.RequiredArgsConstructor;
+import org.demo.authsystem.domain.dto.LoginRequest;
+import org.demo.authsystem.domain.dto.LoginResponse;
 import org.demo.authsystem.domain.dto.RegisterRequest;
 import org.demo.authsystem.domain.dto.UserResponse;
 import org.demo.authsystem.domain.entity.ERole;
@@ -9,7 +11,8 @@ import org.demo.authsystem.domain.entity.User;
 import org.demo.authsystem.exception.EmailAlreadyExistsException;
 import org.demo.authsystem.repository.RoleRepository;
 import org.demo.authsystem.repository.UserRepository;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.demo.authsystem.security.JwtService;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +27,8 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
 
     @Transactional
     public User register(RegisterRequest request) {
