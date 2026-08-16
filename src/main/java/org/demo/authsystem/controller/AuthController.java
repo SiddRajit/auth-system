@@ -2,6 +2,8 @@ package org.demo.authsystem.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.demo.authsystem.domain.dto.LoginRequest;
+import org.demo.authsystem.domain.dto.LoginResponse;
 import org.demo.authsystem.domain.dto.RegisterRequest;
 import org.demo.authsystem.domain.dto.UserResponse;
 import org.demo.authsystem.domain.entity.User;
@@ -24,5 +26,10 @@ public class AuthController {
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
         User user = userService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.toResponse(user));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(userService.login(request));
     }
 }

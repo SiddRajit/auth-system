@@ -13,6 +13,9 @@ import org.demo.authsystem.repository.RoleRepository;
 import org.demo.authsystem.repository.UserRepository;
 import org.demo.authsystem.security.JwtService;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,21 @@ public class UserService {
 
         return userRepository.save(user);
 
+    }
+    public LoginResponse login(LoginRequest request) {
+
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                request.email(),
+                request.password()
+            )
+        );
+
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+
+        String token = jwtService.generateToken(userDetails);
+
+        return new LoginResponse(token);
     }
 
     public UserResponse toResponse(User user) {
